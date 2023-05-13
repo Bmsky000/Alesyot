@@ -110,14 +110,14 @@ module.exports = (m) => {
       if (!('onlyprefix' in setting)) setting.onlyprefix = '+'
       if (!('owners' in setting)) setting.owners = ['6283899188204']
       if (!isNumber(setting.lastReset)) setting.lastReset = new Date * 1
-      if (!('msg' in setting)) setting.msg = '*hallo* _+tag_ *saya alesya system otomatis yang dapat melakukan segala tugas di whatsapp,*\n\n*𓆩♡𓆪* *_Database_* : Local (5.9 GB)\n*𓆩♡𓆪* _*Libary*_ : *Baileys* V6.0.1\n*𓆩♡𓆪* _*Name*_ : _*ᴀʟᴇꜱʏᴀ*_ \n*𓆩♡𓆪* *_Source Code_* :\n*𓆩♡𓆪* *_Version_*: V3.4\n\n"jika ada yang error segera hubungi owner ya 
+      if (!('msg' in setting)) setting.msg = '*hallo* _+tag_ *saya alesya system otomatis yang dapat melakukan segala tugas di whatsapp,*\n\n*𓆩♡𓆪* *_Database_* : Local (5.9 GB)\n*𓆩♡𓆪* _*Libary*_ : *Baileys* V6.0.1\n*𓆩♡𓆪* _*Name*_ : _*ᴀʟᴇꜱʏᴀ*_ \n*𓆩♡𓆪* *_Source Code_* :\n*𓆩♡𓆪* *_Version_*: V3.4\n\n"jika ada yang error segera hubungi owner ya"'
       if (!isNumber(setting.menuStyle)) setting.menuStyle = 4
       if (!('cover' in setting)) setting.cover = 'https://telegra.ph/file/ff1fc88dac62e1908b46a.jpg'
       if (!('link' in setting)) setting.link = 'https://chat.whatsapp.com/Gpa5B6ifuV6C11JLXJiLsX'
    } else {
       global.db.setting = {
-         autodownload: false
-         chatbot: false
+         autodownload: false,
+         chatbot: false,
          debug: false,
          error: [],
          pluginDisable: [],
