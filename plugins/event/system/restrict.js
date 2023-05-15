@@ -4,6 +4,8 @@ exports.run = {
     try {
       //if (!m.fromMe && isOwner) return
       if (/(save|sv)/.test(body)) return client.reply(m.chat, `Males`, m);
+      if (/(entot|ewe)/.test(body)) return client.reply(m.chat, `entot dia buru`, m);
+      if (/(you)/.test(body)) return client.reply(m.chat, ` *sok inggris!!*`, m);
       //with audio
       if (body.toLowerCase() == "assalamualaikum")return client.sendMessage(m.chat, { audio: { url: "./media/audio/waalaikumsalam.mp3" }, mimetype: "audio/mp4",ptt: true, });
       //1
