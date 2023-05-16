@@ -3,9 +3,11 @@ exports.run = {
   async: async (m, { client, body, chats, setting, isOwner }) => {
     try {
       //if (!m.fromMe && isOwner) return
-      if (/(save|sv)/.test(body)) return client.reply(m.chat, `Males`, m);
-      if (/(entot|ewe)/.test(body)) return client.reply(m.chat, `entot dia buru`, m);
-      if (/(you)/.test(body)) return client.reply(m.chat, ` *sok inggris!!*`, m);
+      if (/(save|sv)/.test(body)) return client.reply(m.chat, `*Males*`, m);
+      if (/(entot|ewe)/.test(body)) return client.reply(m.chat, `*perkosa dia yuk*`, m);
+      if (/(sayang|Sayang|ayang|Ayang)/.test(body)) return client.reply(m.chat, `*apa sayang?, mau di lecehin?*`, m);
+      if (/(makasih|Makasih|terimakasih|Terimakasih)/.test(body)) return client.reply(m.chat, `*Sama-Sama*`, m);
+      if (/(you|why|what|omg)/.test(body)) return client.reply(m.chat, ` *sok inggris!!*`, m);
       //with audio
       if (body.toLowerCase() == "assalamualaikum")return client.sendMessage(m.chat, { audio: { url: "./media/audio/waalaikumsalam.mp3" }, mimetype: "audio/mp4",ptt: true, });
       //1
