@@ -8,6 +8,7 @@ exports.run = {
       if (/(sayang|Sayang|ayang|Ayang)/.test(body)) return client.reply(m.chat, `*apa sayang?, mau di lecehin?*`, m);
       if (/(makasih|Makasih|terimakasih|Terimakasih)/.test(body)) return client.reply(m.chat, `*Sama-Sama*`, m);
       if (/(you|why|what|omg)/.test(body)) return client.reply(m.chat, ` *sok inggris!!*`, m);
+      if (/(Alesya|alesya)/.test(body)) return client.reply(m.chat, `*Apa Cinta*`, m);
       //with audio
       if (body.toLowerCase() == "assalamualaikum")return client.sendMessage(m.chat, { audio: { url: "./media/audio/waalaikumsalam.mp3" }, mimetype: "audio/mp4",ptt: true, });
       //1
