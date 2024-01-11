@@ -6,18 +6,24 @@ exports.run = {
       client,
       text,
       isPrefix,
-      command
+      command,
+      Func
    }) => {
       try {
          if (!text) return client.reply(m.chat, Func.example(isPrefix, command, 'lathi'), m)
          client.sendReact(m.chat, '🕒', m.key)
-         let json = await Api.chord(text)
-         if (!json.status) return client.reply(m.chat, global.status.fail, m)
+         const json = await Api.neoxr('/chord', {
+            q: text
+         })
+         if (!json.status) return client.reply(m.chat, Func.jsonFormat(json), m)
          client.reply(m.chat, json.data.chord, m)
-      } catch {
-         client.reply(m.chat, global.status.error, m)
+      } catch (e) {
+         client.reply(m.chat, Func.jsonFormat(e), m)
       }
    },
    error: false,
-   restrict: true
+   limit: true,
+   restrict: true,
+   cache: true,
+   location: __filename
 }

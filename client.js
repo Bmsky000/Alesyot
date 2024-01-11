@@ -1,203 +1,160 @@
-require('./system/config'), require('events').EventEmitter.defaultMaxListeners = 50
-const pino = require('pino'),
-   path = require('path'),
-   colors = require('@colors/colors/safe'),
-   qrcode = require('qrcode-terminal'),
-   axios = require('axios'),
-   spinnies = new(require('spinnies'))(),
-   fs = require('fs'),
-   baileys = fs.existsSync('./node_modules/baileys') ? 'baileys' : fs.existsSync('./node_modules/@adiwajshing/baileys') ? '@adiwajshing/baileys' : 'bails'
-const { useMultiFileAuthState, DisconnectReason, makeInMemoryStore, msgRetryCounterMap, delay } = require(baileys)
-global.component = new (require('@neoxr/neoxr-js'))
-const { Extra, MongoDB, PostgreSQL } = component
-const { Socket, Serialize, Scandir } = Extra
-if (process.env.DATABASE_URL) MongoDB.db = global.database
-global.props = (process.env.DATABASE_URL && /mongo/.test(process.env.DATABASE_URL)) ? MongoDB : (process.env.DATABASE_URL && /postgres/.test(process.env.DATABASE_URL)) ? PostgreSQL : new(require('./system/localdb'))(global.database)
+  "use strict";
+  require('events').EventEmitter.defaultMaxListeners = 500
+  const { exec } = require('child_process')
+const syntax = require('syntax-error')
+  const { Baileys, MongoDB, PostgreSQL, Scandir, Function: Func } = new(require('@neoxr/wb'))
+  const spinnies = new(require('spinnies'))(),
+     fs = require('fs'),
+     path = require('path'),
+     colors = require('@colors/colors'),
+     stable = require('json-stable-stringify'),
+     env = require('./config.json')
+  const cache = new(require('node-cache'))({
+     stdTTL: env.cooldown
+  })
+  if (process.env.DATABASE_URL && /mongo/.test(process.env.DATABASE_URL)) MongoDB.db = env.database
+  global.machine = (process.env.DATABASE_URL && /mongo/.test(process.env.DATABASE_URL)) ? MongoDB : (process.env.DATABASE_URL && /postgres/.test(process.env.DATABASE_URL)) ? PostgreSQL : new(require('./lib/system/localdb'))(env.database)
+const simple = require('./lib/simple')
+  const Auth = require("./lib/MongoAuth/MongoAuth");
+  const { getAuthFromDatabase } = new Auth(env.sessionId);
+  //const { saveState, state, clearState } = await getAuthFromDatabase();
+  const client = new Baileys({
+     type: '--neoxr-v1',
+     plugsdir: 'plugins',
+     sf: 'session',
+     online: true,
+     version: [2, 2318, 11]
+  })
 
-const store = makeInMemoryStore({
-   logger: pino().child({
-      level: 'silent',
-      stream: 'store'
-   })
-})
+  /* starting to connect */
+  client.on('connect', async () => {
+     /* load database */
+     global.db =  {users:[], chats:[], groups:[], bots:[], statistic:{}, sticker:{}, setting:{}, menfess:{}, ...(await machine.fetch() ||{})}
 
-// don't rename "neoxr_store.json" to avoid error!!
-store.readFromFile('./session/neoxr_store.json')
+     /* save database */
+     await machine.save(global.db)
+  })
+
+  /* print error */
+  client.on('error', async error => console.log(colors.red(error.message)))
+
+  /* bot is connected */
+  client.on('ready', async () => {
+     /* auto restart if ram usage is over */
+     const ramCheck = setInterval(() => {
+        var ramUsage = process.memoryUsage().rss
+        if (ramUsage >= require('bytes')(env.ram_limit)) {
+           clearInterval(ramCheck)
+           process.send('reset')
+        }
+     }, 60 * 1000)
+
+     /* create temp directory if doesn't exists */
+     if (!fs.existsSync('./temp')) fs.mkdirSync('./temp')
+
+     /* require all additional functions */
+     require('./lib/system/config'), require('./lib/system/baileys'), require('./lib/system/functions'), require('./lib/system/scraper')
+/* restart after 5 minutes */
 setInterval(() => {
-   store.writeToFile('./session/neoxr_store.json')
-}, 10000)
+exec('pm2 restart all', (err, stdout) => {
+if (err) return m.reply(err.toString())
+if (stdout) return m.reply(stdout.toString())
+})
+}, 5 * 60 * 1000)
+     /* clear temp folder every 10 minutes */
+     setInterval(() => {
+        try {
+           const tmpFiles = fs.readdirSync('./temp')
+           if (tmpFiles.length > 0) {
+              tmpFiles.filter(v => !v.endsWith('.file')).map(v => fs.unlinkSync('./temp/' + v))
+           }
+        } catch {}
+     }, 60 * 1000 * 10)
 
-const connect = async () => {
-   const { state, saveCreds } = await useMultiFileAuthState('session')
-   global.db = {users:[], chats:[], groups:[], statistic:{}, sticker:{}, setting:{}, ...(await props.fetch() ||{})}
-   await props.save(global.db)
-   global.client = Socket({
-      logger: pino({
-         level: 'silent'
-      }),
-      printQRInTerminal: true,
-      patchMessageBeforeSending: (message) => {
-         const requiresPatch = !!(
-            message.buttonsMessage ||
-            message.templateMessage ||
-            message.listMessage
-         );
-         if (requiresPatch) {
-            message = {
-               viewOnceMessage: {
-                  message: {
-                     messageContextInfo: {
-                        deviceListMetadataVersion: 2,
-                        deviceListMetadata: {},
-                     },
-                     ...message,
-                  },
-               },
-            }
-         }
-         return message
-      },
-      browser: ['@YkProject / Ayane-bot', 'safari', '1.0.0'],
-      auth: state,
-      getMessage: async (key) => {
-         if (store) {
-            const msg = await store.loadMessage(key.remoteJid, key.id)
-            return msg.message || undefined
-         }
-         return {
-            conversation: 'hello'
-         }
-      },
-      // To see the latest version : https://web.whatsapp.com/check-update?version=1&platform=web
-      version: [2, 2308, 7]
-   })
+     /* save database every 30 seconds */
+     setInterval(async () => {
+        if (global.db) await machine.save(global.db)
+     }, 30_000)
+  })
 
-   store.bind(client.ev)
-   client.ev.on('connection.update', async (update) => {
-      const {
-         connection,
-         lastDisconnect,
-         qr
-      } = update
-      if (lastDisconnect == 'undefined' && qr != 'undefined') {
-         qrcode.generate(qr, {
-            small: true
-         })
-      }
-      if (connection === 'connecting') {
-       spinnies.add('start', {
-         text: 'Connecting . . .'
-      })
-     } else if (connection === 'open') {
-         spinnies.succeed('start', {
-            text: `Connected, you login as ${client.user.name || client.user.verifiedName}`
-         })
-      } else if (connection === 'close') {
-         if (lastDisconnect.error.output.statusCode == DisconnectReason.loggedOut) {
-            spinnies.fail('start', {
-               text: `Can't connect to Web Socket`
-            })
-            await props.save()
-            process.exit(0)
-         } else {
-            connect().catch(() => connect())
-         }
-      }
-   })
+  /* print all message object */
+  client.on('message', ctx => require('./handler')(client.sock, ctx))
 
-   client.ev.on('creds.update', saveCreds)
-   client.ev.on('messages.upsert', async chatUpdate => {
-      try {
-         m = chatUpdate.messages[0]
-         if (!m.message) return
-         Serialize(client, m)
-         const files = await Scandir('./plugins')
-         const plugins = Object.fromEntries(files.filter(v => v.endsWith('.js')).map(file => [path.basename(file).replace('.js', ''), require(file)]))
-         require('./system/baileys'), require('./handler')(client, m, plugins, store)
-      } catch (e) {
-         console.log(e)
-      }
-   })
+  /* print deleted message object */
+  client.on('message.delete', ctx => {
+     const sock = client.sock
+     if (!ctx || ctx.origin.fromMe || ctx.origin.isBot || !ctx.origin.sender) return
+     if (cache.has(ctx.origin.sender) && cache.get(ctx.origin.sender) === 1) return
+     cache.set(ctx.origin.sender, 1)
+     if (ctx.origin.isGroup && global.db.groups.some(v => v.jid == ctx.origin.chat) && global.db.groups.find(v => v.jid == ctx.origin.chat).antidelete) return sock.copyNForward(ctx.origin.chat, ctx.delete)
+  })
 
-   client.ev.on('contacts.update', update => {
-      for (let contact of update) {
-         let id = client.decodeJid(contact.id)
-         if (store && store.contacts) store.contacts[id] = {
-            id,
-            name: contact.notify
-         }
-      }
-   })
+  /* AFK detector */
+  client.on('presence.update', update => {
+     if (!update) return
+     const sock = client.sock
+     const { id, presences } = update
+     if (id.endsWith('g.us')) {
+        for (let jid in presences) {
+           if (!presences[jid] || jid == sock.decodeJid(sock.user.id)) continue
+           if ((presences[jid].lastKnownPresence === 'composing' || presences[jid].lastKnownPresence === 'recording') && global.db.users.find(v => v.jid == jid) && global.db.users.find(v => v.jid == jid).afk > -1) {
+              sock.reply(id, `System detects activity from @${jid.replace(/@.+/, '')} after being offline for : ${Func.texted('bold', Func.toTime(new Date - global.db.users.find(v => v.jid == jid).afk))}\n\n➠ ${Func.texted('bold', 'Reason')} : ${global.db.users.find(v => v.jid == jid).afkReason ? global.db.users.find(v => v.jid == jid).afkReason : '-'}`, global.db.users.find(v => v.jid == jid).afkObj)
+              global.db.users.find(v => v.jid == jid).afk = -1
+              global.db.users.find(v => v.jid == jid).afkReason = ''
+              global.db.users.find(v => v.jid == jid).afkObj = {}
+           }
+        }
+     } else {}
+  })
 
-   client.ev.on('group-participants.update', async (room) => {
-      let meta = await (await client.groupMetadata(room.id))
-      let member = room.participants[0]
-      let text_welcome = `Terimahkasih kak +tag hati hati di group +grup ini suka makan orang`
-      let text_left = `yah si +tag keluar padahal mau saya makan.`
-      let groupSet = global.db.groups.find(v => v.jid == room.id)
-      try {
-         pic = await Func.fetchBuffer(await client.profilePictureUrl(member, 'image'))
-      } catch {
-         pic = await Func.fetchBuffer(await client.profilePictureUrl(room.id, 'image'))
-      }
-      if (room.action == 'add') {
-         if (groupSet && groupSet.localonly) {
-            if (global.db.users.some(v => v.jid == member) && !global.db.users.find(v => v.jid == member).whitelist && !member.startsWith('62') || !member.startsWith('62')) {
-               client.reply(room.id, Func.texted('bold', `Sorry @${member.split`@`[0]}, this group is only for indonesian people and you will removed automatically.`))
-               client.updateBlockStatus(member, 'block')
-               return await Func.delay(2000).then(() => client.groupParticipantsUpdate(room.id, [member], 'remove'))
-            }
-         }
-         let txt = (groupSet.text_welcome != '' ? groupSet.text_welcome : text_welcome).replace('+tag', `@${member.split`@`[0]}`).replace('+grup', `${meta.subject}`)
-         if (groupSet.welcome) client.sendMessageModify(room.id, txt, null, {
-            largeThumb: true,
-            thumbnail: pic,
-            url: global.db.setting.link
-         })
-      } else if (room.action == 'remove') {
-         let txt = (groupSet.text_left != '' ? groupSet.text_left : text_left).replace('+tag', `@${member.split`@`[0]}`).replace('+grup', `${meta.subject}`)
-         if (groupSet.left) client.sendMessageModify(room.id, txt, null, {
-            largeThumb: true,
-            thumbnail: pic,
-            url: global.db.setting.link
-         })
-      }
-   })
+  client.on('group.add', async ctx => {
+     const sock = client.sock
+     const text = `selamat admin Beban nambah 1 +tag Telah Join Di +grup groups.`
+     const groupSet = global.db.groups.find(v => v.jid == ctx.jid)
+     try {
+        var pic = await Func.fetchBuffer(await sock.profilePictureUrl(ctx.member, 'image'))
+     } catch {
+        var pic = await Func.fetchBuffer(await sock.profilePictureUrl(ctx.jid, 'image'))
+     }
 
-   client.ws.on('CB:call', async json => {
-      if (json.content[0].tag == 'offer') {
-         let object = json.content[0].attrs['call-creator']
-         await Func.delay(2000)
-         await client.updateBlockStatus(object, 'block')
-      }
-   })
-   
-   // Auto restart if ram usage has reached the limit, if you want to use enter the ram size in bytes
-   const ramCheck = setInterval(() => {
-      var ramUsage = process.memoryUsage().rss
-      if (ramUsage >= 900000000) { // 900 MB
-         clearInterval(ramCheck)
-         process.send('reset')
-      }
-   }, 60 * 1000) // Checking every 1 minutes
-   
-   setInterval(async () => {
-      const tmpFiles = fs.readdirSync('./temp')
-      if (tmpFiles.length > 0) {
-         tmpFiles.map(v => fs.unlinkSync('./temp/' + v))
-      }
-      const storeFile = await Func.getFile('./session/neoxr_store.json')
-      let chSize = Func.sizeLimit(storeFile.size, 2)
-      if (chSize.oversize) {
-         fs.unlinkSync('./session/neoxr_store.json')
-      }
-   }, 60 * 1000 * 5)
+     /* localonly to remove new member when the number not from indonesia */
+     if (groupSet && groupSet.localonly) {
+        if (global.db.users.some(v => v.jid == ctx.member) && !global.db.users.find(v => v.jid == ctx.member).whitelist && !ctx.member.startsWith('62') || !ctx.member.startsWith('62')) {
+           sock.reply(ctx.jid, Func.texted('bold', `Sorry @${ctx.member.split`@`[0]}, this group is only for indonesian people and you will removed automatically.`))
+           sock.updateBlockStatus(member, 'block')
+           return await Func.delay(2000).then(() => sock.groupParticipantsUpdate(ctx.jid, [ctx.member], 'remove'))
+        }
+     }
 
-   setInterval(async () => {
-      if (global.db) await props.save(global.db)
-   }, 30_000)
-   
-   return client
-}
+     const txt = (groupSet && groupSet.text_welcome ? groupSet.text_welcome : text).replace('+tag', `@${ctx.member.split`@`[0]}`).replace('+grup', `${ctx.subject}`)
+     if (groupSet && groupSet.welcome) sock.sendMessageModify(ctx.jid, txt, null, {
+        largeThumb: false,
+        thumbnail: pic,
+        url: global.db.setting.link
+     })
+  })
 
-connect().catch(() => connect())
+  client.on('group.remove', async ctx => {
+     const sock = client.sock
+     const text = `Good bye +tag :)`
+     const groupSet = global.db.groups.find(v => v.jid == ctx.jid)
+     try {
+        var pic = await Func.fetchBuffer(await sock.profilePictureUrl(ctx.member, 'image'))
+     } catch {
+        var pic = await Func.fetchBuffer(await sock.profilePictureUrl(ctx.jid, 'image'))
+     }
+     const txt = (groupSet && groupSet.text_left ? groupSet.text_left : text).replace('+tag', `@${ctx.member.split`@`[0]}`).replace('+grup', `${ctx.subject}`)
+     if (groupSet && groupSet.left) sock.sendMessageModify(ctx.jid, txt, null, {
+        largeThumb: false,
+        thumbnail: pic,
+        url: global.db.setting.link
+     })
+  })
+
+  client.on('caller', ctx => {
+    if (typeof ctx === 'boolean') return
+    client.sock.updateBlockStatus(ctx.jid, 'block')
+  })
+
+  // client.on('group.promote', ctx => console.log(ctx))
+  // client.on('group.demote', ctx => console.log(ctx))

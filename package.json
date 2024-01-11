@@ -1,36 +1,45 @@
 {
-   "name": "Ayane",
-   "version": "2.2.2",
+   "name": "neoxr-bot",
+   "version": "4.0-rc",
    "description": "WhatsApp Bot (Base)",
    "main": "index.js",
    "scripts": {
       "start": "node ."
    },
-   "engines": {
-      "node": "14.x",
-      "npm": "8.x"
+   "repository": {
+      "type": "git",
+      "url": "git+https://github.com/neoxr/wbot.git"
    },
    "keywords": [
-      "wabot-md"
+      "wb",
+      "bot"
    ],
-   "author": "mrtakt",
+   "author": "Wildan Izzudin",
    "license": "ISC",
+   "bugs": {
+      "url": "https://github.com/neoxr/wbot/issues"
+   },
+   "homepage": "https://github.com/neoxr/wbot#readme",
    "dependencies": {
-      "@adiwajshing/baileys": "npm:baileys",
-      "@adiwajshing/keyed-db": "^0.2.4",
-      "@colors/colors": "1.5.0",
-      "@neoxr/neoxr-js": "^1.4.8",
-      "cfonts": "~2.10.0",
+      "@colors/colors": "^1.6.0",
+      "@neoxr/wb": "^1.25.37",
+      "baileysjs": "^6.2.2",
+      "bytes": "^3.1.2",
+      "cfonts": "3.1.1",
+      "dotenv": "^16.3.1",
       "express": "~4.16.4",
-      "fs": "^0.0.1-security",
       "json-stable-stringify": "^1.0.2",
-      "network-speed": "^2.1.1",
       "node-cron": "^3.0.0",
       "node-gtts": "^2.0.2",
-      "pino": "~7.0.5",
+      "nodemailer": "^6.9.8",
       "qrcode": "1.5.0",
-      "spinnies": "^0.5.1",
-      "translate-google-api": "~1.0.4",
-      "yt-search": "~2.10.0"
+      "speedtest-net": "1.6.2",
+      "streamifier": "^0.1.1",
+      "translate-google-api": "1.0.4"
+   },
+   "devDependencies": {
+      "@adiwajshing/baileys": "npm:@neoxr/baileys",
+      "@adiwajshing/keyed-db": "^0.2.4",
+      "jimp": "^0.16.13"
    }
 }

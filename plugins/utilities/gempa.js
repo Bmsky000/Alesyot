@@ -2,12 +2,13 @@ exports.run = {
    usage: ['gempa'],
    category: 'utilities',
    async: async (m, {
-      client
+      client,
+      Func
    }) => {
       try {
          client.sendReact(m.chat, '🕒', m.key)
-         let json = await Api.gempa()
-         if (!json.status) return client.reply(m.chat, global.status.fail, m)
+         let json = await Api.neoxr('/gempa')
+         if (!json.status) return client.reply(m.chat, Func.jsonFormat(json), m)
          let caption = `乂  *G E M P A*\n\n`
          caption += `	◦  *Lintang* : ${json.data.lintang}\n`
          caption += `	◦  *Bujur* : ${json.data.bujur}\n`
@@ -20,8 +21,8 @@ exports.run = {
             largeThumb: true,
             thumbnail: await Func.fetchBuffer(json.data.map)
          })
-      } catch {
-         client.reply(m.chat, global.status.error, m)
+      } catch (e) {
+         client.reply(m.chat, Func.jsonFormat(e), m)
       }
    },
    error: false

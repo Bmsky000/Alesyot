@@ -6,7 +6,8 @@ exports.run = {
    async: async (m, {
       client,
       text,
-      participants
+      participants,
+      Func
    }) => {
       try {
          let member = participants.map(v => v.id)
@@ -15,7 +16,7 @@ exports.run = {
          client.reply(m.chat, `乂  *E V E R Y O N E*\n\n*“${message}”*\n${readmore}\n${member.map(v => '◦  @' + v.replace(/@.+/, '')).join('\n')}`, m)
       } catch (e) {
          console.log(e)
-         return client.reply(m.chat, global.status.error, m)
+         return client.reply(m.chat, Func.jsonFormat(e), m)
       }
    },
    admin: true,

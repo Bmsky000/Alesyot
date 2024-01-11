@@ -6,16 +6,17 @@ exports.run = {
    category: 'group',
    async: async (m, {
       client,
-      participants
+      participants,
+      Func
    }) => {
       try {
          let setting = global.db.groups.find(v => v.jid == m.chat)
-         let pic = await Func.fetchBuffer('./media/image/default.jpg')
+         var pic = await Func.fetchBuffer('./media/image/default.jpg')
          let meta = await (await client.groupMetadata(m.chat))
          let admin = await client.groupAdmin(m.chat)
          let member = participants.map(u => u.id)
          try {
-            pic = await Func.fetchBuffer(await client.profilePictureUrl(m.chat, 'image'))
+            var pic = await Func.fetchBuffer(await client.profilePictureUrl(m.chat, 'image'))
          } catch {} finally {
             let caption = `乂  *G R O U P - I N F O*\n\n`
             caption += `	◦  *Name* : ${meta.subject}\n`
@@ -28,9 +29,10 @@ exports.run = {
             caption += `	◦  ${Func.switcher(setting.antilink, '[ √ ]', '[ × ]')} Anti Link\n`
             caption += `	◦  ${Func.switcher(setting.antivirtex, '[ √ ]', '[ × ]')} Anti Virtex\n`
             caption += `	◦  ${Func.switcher(setting.filter, '[ √ ]', '[ × ]')} Filter\n`
-            caption += `	◦  ${Func.switcher(setting.game, '[ √ ]', '[ × ]')} Games\n`
+            caption += `	◦  ${Func.switcher(setting.autosticker, '[ √ ]', '[ × ]')} Auto Sticker\n`
             caption += `	◦  ${Func.switcher(setting.left, '[ √ ]', '[ × ]')} Left Message\n`
             caption += `	◦  ${Func.switcher(setting.localonly, '[ √ ]', '[ × ]')} Localonly\n`
+            caption += `	◦  ${Func.switcher(setting.viewonce, '[ √ ]', '[ × ]')} Viewonce Forwarder\n`
             caption += `	◦  ${Func.switcher(setting.welcome, '[ √ ]', '[ × ]')} Welcome Message\n\n`
             caption += `乂  *G R O U P - S T A T U S*\n\n`
             caption += `	◦  *Muted* : ${Func.switcher(setting.mute, '√', '×')}\n`

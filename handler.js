@@ -1,10 +1,18 @@
-const cron = require('node-cron')
+const { Function: Func, Logs, Scraper } = new(require('@neoxr/wb'))
+const env = require('./config.json')
 const fs = require('fs')
-module.exports = async (client, m, plugins, store) => {
+const cron = require('node-cron')
+const cache = new(require('node-cache'))({
+   stdTTL: env.cooldown
+})
+module.exports = async (client, ctx) => {
+   const { store, m, body, prefix, plugins, commands, args, command, text, prefixes } = ctx
    try {
-      require('./system/database')(m)
-      const isOwner = [client.decodeJid(client.user.id).split`@` [0], global.owner, ...global.db.setting.owners].map(v => v + '@s.whatsapp.net').includes(m.sender)
+//=================================================/
+      require('./lib/system/schema')(m, env) /* input database */
+      const isOwner = [client.decodeJid(client.user.id).split`@` [0], env.owner, ...global.db.setting.owners].map(v => v + '@s.whatsapp.net').includes(m.sender)
       const isPrem = (global.db.users.some(v => v.jid == m.sender) && global.db.users.find(v => v.jid == m.sender).premium) || isOwner
+      const isAuth = (global.db.users.some(v => v.jid == m.sender) && global.db.users.find(v => v.jid == m.sender).authentication) || isOwner
       const groupMetadata = m.isGroup ? await client.groupMetadata(m.chat) : {}
       const participants = m.isGroup ? groupMetadata.participants : [] || []
       const adminList = m.isGroup ? await client.groupAdmin(m.chat) : [] || []
@@ -15,16 +23,30 @@ module.exports = async (client, m, plugins, store) => {
          chats = global.db.chats.find(v => v.jid == m.chat),
          users = global.db.users.find(v => v.jid == m.sender),
          setting = global.db.setting
-      const body = typeof m.text == 'string' ? m.text : false
-      if (!setting.online) await client.sendPresenceUpdate('unavailable', m.chat)
-      if (setting.online) await client.sendPresenceUpdate('available', m.chat)
+      Logs(client, m, false, 1) /* 1 = print all message, 0 = print only cmd message */
+      if (!setting.online) client.sendPresenceUpdate('unavailable', m.chat)
+      if (setting.online) {
+         client.sendPresenceUpdate('available', m.chat)
+         client.readMessages([m.key])
+      }
+      if (m.isGroup && !isBotAdmin) {
+         groupSet.localonly = false
+      }
+      if (!users) global.db.users.push({
+         jid: m.sender,
+         banned: false,
+         limit: env.limit,
+         hit: 0,
+         spam: 0
+      })
       if (setting.debug && !m.fromMe && isOwner) client.reply(m.chat, Func.jsonFormat(m), m)
-      if (m.isGroup && !isBotAdmin) groupSet.localonly = false
-      if (m.isGroup && groupSet.autoread) await client.readMessages([m.key])
-      if (!m.isGroup) await client.readMessages([m.key])
-      if (m.isGroup) groupSet.activity = new Date() * 1
+      if (!m.fromMe && m.isGroup && groupSet.antibot && m.isBot && isBotAdmin && (!isOwner || !isAdmin)) return m.reply(Func.texted('bold', `🚩 Bot lain adalah musuhku kamu Tidak Di Perbolehkan Di wilayahku maaf.`)).then(async () => await client.groupParticipantsUpdate(m.chat, [m.sender], 'remove'))
+      if (m.isGroup && !isBotAdmin) {
+         groupSet.captcha = true
+         groupSet.localonly = false
+      }
       if (m.isGroup && !groupSet.stay && (new Date * 1) >= groupSet.expired && groupSet.expired != 0) {
-         return client.reply(m.chat, Func.texted('italic', '🚩 Bot time has expired and will leave from this group, thank you.', null, {
+         return client.reply(m.chat, Func.texted('italic', '🚩 Waktu Bot Telah Habis Untuk Grup Ini,Terima Kasih.', null, {
             mentions: participants.map(v => v.id)
          })).then(async () => {
             groupSet.expired = 0
@@ -32,36 +54,36 @@ module.exports = async (client, m, plugins, store) => {
          })
       }
       if (users && (new Date * 1) >= users.expired && users.expired != 0) {
-         return client.reply(m.chat, Func.texted('italic', '🚩 Your premium package has expired, thank you for buying and using our service.')).then(async () => {
+         return client.reply(users.jid, Func.texted('italic', '🚩 Premium Mu Sudah Habis,Langganan Premium Kembali Untuk Menikmati Fitur.')).then(async () => {
             users.premium = false
             users.expired = 0
-            users.limit = global.limit
+            users.limit = env.limit
          })
       }
+      if (m.isGroup) groupSet.activity = new Date() * 1
       if (users) users.lastseen = new Date() * 1
       if (chats) {
-         chats.lastseen = new Date() * 1
          chats.chat += 1
+         chats.lastseen = new Date * 1
       }
       if (m.isGroup && !m.isBot && users && users.afk > -1) {
-         client.reply(m.chat, `*Hallo Sayang🥀️ Kamu Kembali Online Setelah Off Selama* : ${Func.texted('bold', Func.toTime(new Date - users.afk))}\n\n• ${Func.texted('bold', 'Alasannya')}: ${users.afkReason ? users.afkReason : '-'}`, m)
+client.sendMessageModify(m.chat, `gerak gerik seperti habis maling selama: ${Func.texted('bold', Func.toTime(new Date - users.afk))}\n\n• ${Func.texted('bold', 'Alasan')}: ${users.afkReason ? users.afkReason : '-'}`, m, {
+   title: '© AFK',
+   largeThumb: true,
+   ads: true,
+   /* can buffer or url */
+   thumbnail: setting.cover
+})
          users.afk = -1
          users.afkReason = ''
       }
       cron.schedule('00 00 * * *', () => {
          setting.lastReset = new Date * 1
-         global.db.users.filter(v => v.limit < global.limit && !v.premium).map(v => v.limit = global.limit)
+         global.db.users.filter(v => v.limit < env.limit && !v.premium).map(v => v.limit = env.limit)
          Object.entries(global.db.statistic).map(([_, prop]) => prop.today = 0)
       }, {
          scheduled: true,
-         timezone: global.timezone
-      })
-      cron.schedule('*/10 * * * *', async () => {
-         const tmpFiles = fs.readdirSync('./temp')
-         if (tmpFiles.length > 0) tmpFiles.map(v => fs.unlinkSync('./temp/' + v))
-      }, {
-         scheduled: true,
-         timezone: global.timezone
+         timezone: process.env.TZ
       })
       if (m.isGroup && !m.fromMe) {
          let now = new Date() * 1
@@ -74,101 +96,71 @@ module.exports = async (client, m, plugins, store) => {
             groupSet.member[m.sender].lastseen = now
          }
       }
-      if (!m.fromMe && m.isBot && m.mtype == 'audioMessage' && m.msg.ptt) return client.sendMessage(m.chat, {
-         delete: {
-            remoteJid: m.chat,
-            fromMe: false,
-            id: m.key.id,
-            participant: m.sender
-         }
-      })
-      let getPrefix = body ? body.charAt(0) : ''
-      let isPrefix = (setting.multiprefix ? setting.prefix.includes(getPrefix) : setting.onlyprefix == getPrefix) ? getPrefix : undefined
-      component.Logs(client, m, isPrefix)
-      if (m.isBot || m.chat.endsWith('broadcast')) return
-      if (((m.isGroup && !groupSet.mute) || !m.isGroup) && !users.banned) {
-         if (body && body == isPrefix) {
-            if (m.isGroup && groupSet.mute || !isOwner) return
-            let old = new Date()
-            let banchat = setting.self ? true : false
-            if (!banchat) {
-               await client.reply(m.chat, Func.texted('bold', `Checking . . .`), m)
-               return client.reply(m.chat, Func.texted('bold', `Response Speed: ${((new Date - old) * 1)}ms`), m)
-            } else {
-               await client.reply(m.chat, Func.texted('bold', `Checking . . .`), m)
-               return client.reply(m.chat, Func.texted('bold', `Response Speed: ${((new Date - old) * 1)}ms (nonaktif)`), m)
-            }
-         }
+      const matcher = Func.matcher(command, commands).filter(v => v.accuracy >= 60)
+      if (prefix && !commands.includes(command) && matcher.length > 0 && !setting.self) {
+         if (!m.isGroup || (m.isGroup && !groupSet.mute)) return client.reply(m.chat, `🚩 kalo itu salah mungkin ini :\n\n${matcher.map(v => '➠ *' + (prefix ? prefix : '') + v.string + '* (' + v.accuracy + '%)').join('\n')}`, m)
       }
-      const commands = Func.arrayJoin(Object.values(Object.fromEntries(Object.entries(plugins).filter(([name, prop]) => prop.run.usage))).map(v => v.run.usage)).concat(Func.arrayJoin(Object.values(Object.fromEntries(Object.entries(plugins).filter(([name, prop]) => prop.run.hidden))).map(v => v.run.hidden)))
-      const args = body && body.replace(isPrefix, '').split` `.filter(v => v)
-      const command = args && args.shift().toLowerCase()
-      const clean = body && body.replace(isPrefix, '').trim().split` `.slice(1)
-      const text = clean ? clean.join` ` : undefined
-      const prefixes = global.db.setting.multiprefix ? global.db.setting.prefix : [global.db.setting.onlyprefix]
-      let matcher = Func.matcher(command, commands).filter(v => v.accuracy >= 60)
-      if (isPrefix && !commands.includes(command) && matcher.length > 0 && !setting.self) {
-         if (!m.isGroup || (m.isGroup && !groupSet.mute)) return client.reply(m.chat, `🚩 Command you are using is wrong, try the following recommendations :\n\n${matcher.map(v => '➠ *' + (isPrefix ? isPrefix : '') + v.string + '* (' + v.accuracy + '%)').join('\n')}`, m)
-      }
-      if (body && isPrefix && commands.includes(command) || body && !isPrefix && commands.includes(command) && setting.noprefix || body && !isPrefix && commands.includes(command) && global.evaluate_chars.includes(command)) {
-         const is_commands = Object.fromEntries(Object.entries(plugins).filter(([name, prop]) => prop.run.usage))
-         let matcher = Func.matcher(command, commands).filter(v => v.accuracy >= 60)
-         try {
-            if (new Date() * 1 - chats.command > (global.cooldown * 1000)) {
-               chats.command = new Date() * 1
-            } else {
-               if (!m.fromMe) return
-            }
-         } catch (e) {
-            global.db.chats.push({
-               jid: m.chat,
-               chat: 1,
-               lastchat: 0,
-               lastseen: new Date() * 1,
-               command: new Date() * 1
-            })
-         }
-         if (setting.error.includes(command) && !setting.self) return client.reply(m.chat, Func.texted('bold', `🚩 Command _${(isPrefix ? isPrefix : '') + command}_ disabled.`), m)
+      if (body && prefix && commands.includes(command) || body && !prefix && commands.includes(command) && setting.noprefix || body && !prefix && commands.includes(command) && env.evaluate_chars.includes(command)) {
+         if (setting.error.includes(command)) return client.reply(m.chat, Func.texted('bold', `🚩 Command _${(prefix ? prefix : '') + command}_ disabled.`), m)
+         if (!m.isGroup && env.blocks.some(no => m.sender.startsWith(no))) return client.updateBlockStatus(m.sender, 'block')
+         if (cache.has(m.sender) && cache.get(m.sender) == 'on_hold' && !isOwner) return
+         cache.set(m.sender, 'on_hold')
          if (commands.includes(command)) {
             users.hit += 1
             users.usebot = new Date() * 1
             Func.hitstat(command, m.sender)
          }
+         const is_commands = Object.fromEntries(Object.entries(plugins).filter(([name, prop]) => prop.run.usage))
          for (let name in is_commands) {
-            let cmd = is_commands[name].run
-            let turn = cmd.usage instanceof Array ? cmd.usage.includes(command) : cmd.usage instanceof String ? cmd.usage == command : false
-            let turn_hidden = cmd.hidden instanceof Array ? cmd.hidden.includes(command) : cmd.hidden instanceof String ? cmd.hidden == command : false
-            if (body && global.evaluate_chars.some(v => body.startsWith(v)) && !body.startsWith(isPrefix)) return
+            const cmd = is_commands[name].run
+            const turn = cmd.usage instanceof Array ? cmd.usage.includes(command) : cmd.usage instanceof String ? cmd.usage == command : false
+            const turn_hidden = cmd.hidden instanceof Array ? cmd.hidden.includes(command) : cmd.hidden instanceof String ? cmd.hidden == command : false
             if (!turn && !turn_hidden) continue
-            if (!m.isGroup && global.blocks.some(no => m.sender.startsWith(no))) return client.updateBlockStatus(m.sender, 'block')
-            if (setting.self && !isOwner && !m.fromMe) return
-            if (setting.pluginDisable.includes(name)) return client.reply(m.chat, Func.texted('bold', `🚩 Plugin disabled by Owner.`), m)
-            if (!m.isGroup && !['owner'].includes(name) && chats && !isPrem && !users.banned && new Date() * 1 - chats.lastchat < global.timer) continue
-            if (!m.isGroup && !['owner'].includes(name) && chats && !isPrem && !users.banned && setting.groupmode) return client.sendMessageModify(m.chat, `🚩 *maaf kak bot sedang dalam mode khusus group, jadi kalo mau make sekarang, join dulu ke group ya*\n\nlinknya: https://chat.whatsapp.com/JzVjZdvnBVw1Eby1q2jjTj`, m, {
+            if (m.isBot || m.chat.endsWith('broadcast') || /edit/.test(m.mtype)) continue
+            if (setting.self && !isOwner && !m.fromMe) continue
+            if (!m.isGroup && !['owner'].includes(name) && chats && !isPrem && !users.banned && new Date() * 1 - chats.lastchat < env.timeout) continue
+            if (!m.isGroup && !['owner', 'menfess', 'verify'].includes(name) && chats && !isPrem && !users.banned && setting.groupmode) {
+               client.sendMessageModify(m.chat, `⚠️ Bot sedang dalam mode khusus group, kalo mau pake join group dulu https://chat.whatsapp.com/EG0AFDSWMgMCxGZ2EU3SjA\n atau tanya owner dengan cara ketik *${prefixes[0]}owner*.`, m, {
+                  largeThumb: true,
+                  thumbnail: 'https://telegra.ph/file/0acd56d1610d84e416720.jpg',
+                  url: setting.link
+               }).then(() => chats.lastchat = new Date() * 1)
+               continue
+            }
+            if (!['me', 'owner', 'exec'].includes(name) && users && (users.banned || new Date - users.banTemp < env.timeout)) continue
+            if (!['verify', 'exec'].includes(name) && !m.isGroup && users && !users.banned && !users.verified && setting.verify) users.attempt += 1
+            let teks = `🚩 *[ ${users.attempt} / 5 ]* Verifikasi nomor dengan menggunakan email, 1 email untuk memverifikasi 1 nomor WhatsApp. Silahkan ikuti step by step berikut :\n\n– *STEP 1*\nGunakan perintah *reg <email>* untuk mendapatkan kode verifikasi melalui email.\nContoh : *reg doraemon@gmail.com*\n\n– *STEP 2*\nBuka email dan cek pesan masuk atau di folder spam, setelah kamu mendapat kode verifikasi silahkan kirim kode tersebut kepada Alesya bot.\n\n*Note* :\nMengabaikan pesan ini sebanyak *5x* kamu akan di banned dan di blokir, untuk membuka banned dan blokir dikenai biaya sebesar Rp. 2,000\n\njika sudah menggunakan command tetapi code tidak ada di gmail kalian, silakan hubungi owner ketik *.owner*`
+            if (users && !users.banned && !users.verified && users.attempt >= 5 && setting.verify) return client.reply(m.isGroup ? m.sender : m.chat, Func.texted('bold', `🚩 [ ${users.attempt} / 5 ] : Kamu mengabaikan pesan verifikasi tapi tenang masih ada bot lain kok, banned thanks. (^_^)`), m).then(() => {
+               users.banned = true
+               users.attempt = 0
+               users.code = ''
+               users.codeExpire = 0
+               users.email = ''
+               client.updateBlockStatus(m.sender, 'block')
+            })
+            if (!['verify', 'exec'].includes(name) && !m.isGroup && users && !users.banned && !users.verified && setting.verify) return client.sendMessageModify(m.chat, teks, m, {
                largeThumb: true,
-               thumbnail: await Func.fetchBuffer('https://telegra.ph/file/2709298672a9c2d5556f6.jpg'),
-               url: setting.link
-            }).then(() => chats.lastchat = new Date() * 1)
-            if (!['me', 'owner'].includes(name) && users && (users.banned || new Date - users.banTemp < global.timer)) return
+               thumbnail: await Func.fetchBuffer('https://telegra.ph/file/ef18b1c12bc3778804fb5.jpg')
+            })
+            if (!['verify', 'exec'].includes(name) && m.isGroup && users && !users.banned && !users.verified && setting.verify) return client.reply(m.chat, `🚩 Nomormu Belum Di Verifikasi, Verifikasi Dengan Perintah *reg <email>* Di Chat Pribadi.`, m)
             if (m.isGroup && !['activation', 'groupinfo'].includes(name) && groupSet.mute) continue
-            if (m.isGroup && !isOwner && /chat.whatsapp.com/i.test(text)) return client.groupParticipantsUpdate(m.chat, [m.sender], 'remove')
             if (cmd.cache && cmd.location) {
                let file = require.resolve(cmd.location)
                Func.reload(file)
             }
-            if (cmd.error) {
-               client.reply(m.chat, global.status.errorF, m)
+            if (cmd.owner && !isOwner) {
+               client.reply(m.chat, global.status.owner, m)
                continue
             }
-            if (cmd.restrict && !isOwner && text && new RegExp('\\b' + global.db.setting.toxic.join('\\b|\\b') + '\\b').test(text.toLowerCase())) {
-               client.reply(m.chat, `🚩 You violated the *Terms & Conditions* of using bots by using blacklisted keywords, as a penalty for your violation being blocked and banned. To unblock and unbanned you have to pay *Rp. 10,000,-*`, m).then(() => {
+            if (cmd.auth && !isAuth) {
+               client.reply(m.chat, global.status.auth, m)
+               continue
+            }
+            if (cmd.restrict && !isPrem && !isOwner && text && new RegExp('\\b' + setting.toxic.join('\\b|\\b') + '\\b').test(text.toLowerCase())) {
+               client.reply(m.chat, `⚠️ Ups kamu melanggar kebijakan saya,  kamu saya banned selamt tinggal, mwuah🍁`, m).then(() => {
                   users.banned = true
                   client.updateBlockStatus(m.sender, 'block')
                })
-               continue
-            }
-            if (cmd.owner && !isOwner) {
-               client.reply(m.chat, global.status.owner, m)
                continue
             }
             if (cmd.premium && !isPrem) {
@@ -176,15 +168,15 @@ module.exports = async (client, m, plugins, store) => {
                continue
             }
             if (cmd.limit && users.limit < 1) {
-               return client.reply(m.chat, `🚩 Your bot usage has reached the limit and will be will be reset after 12 hours.\n\nTo get more limits, upgrade to a premium plan send *${prefixes[0]}premium*`, m).then(() => users.premium = false)
+               client.reply(m.chat, `⚠️ Kamu Mencapai Limit ,Akan Reset Pukul 00.00\n\nLebih Banyak Limit?,Beralih Ke Premium.`, m).then(() => users.premium = false)
                continue
             }
             if (cmd.limit && users.limit > 0) {
-               let limit = cmd.limit.constructor.name == 'Boolean' ? 1 : cmd.limit
+               const limit = cmd.limit.constructor.name == 'Boolean' ? 1 : cmd.limit
                if (users.limit >= limit) {
                   users.limit -= limit
                } else {
-                  client.reply(m.chat, Func.texted('bold', `🚩 Your limit is not enough to use this feature.`), m)
+                  client.reply(m.chat, Func.texted('bold', `⚠️ Limitmu Tidak Cukup Untuk Fitur Ini.`), m)
                   continue
                }
             }
@@ -202,78 +194,65 @@ module.exports = async (client, m, plugins, store) => {
                client.reply(m.chat, global.status.private, m)
                continue
             }
-            cmd.async(m, {
-               client,
-               args,
-               text,
-               isPrefix: isPrefix ? isPrefix : '',
-               command,
-               participants,
-               blockList,
-               isPrem,
-               isOwner,
-               isAdmin,
-               isBotAdmin,
-               setting,
-               plugins,
-               store
-            })
+            if (cmd.game && !setting.games) {
+               client.reply(m.chat, global.status.gameSystem, m)
+               continue
+            }
+            if (cmd.game && Func.level(users.point)[0] >= 50) {
+               client.reply(m.chat, global.status.gameLevel, m)
+               continue
+            }
+            if (cmd.game && m.isGroup && !groupSet.game) {
+               client.reply(m.chat, global.status.gameInGroup, m)
+               continue
+            }
+
+            cmd.async(m, { client, args, text, isPrefix: prefix, prefixes, command, groupMetadata, participants, users, chats, groupSet, setting, isOwner, isAdmin, isBotAdmin, plugins, blockList, env, ctx, store, Func, Scraper })
             break
          }
       } else {
          const is_events = Object.fromEntries(Object.entries(plugins).filter(([name, prop]) => !prop.run.usage))
          for (let name in is_events) {
             let event = is_events[name].run
+            if (m.fromMe || m.chat.endsWith('broadcast') || /pollUpdate/.test(m.mtype)) continue
+            if (!m.isGroup && env.blocks.some(no => m.sender.startsWith(no))) return client.updateBlockStatus(m.sender, 'block')
+            if (setting.self && !['menfess_ev', 'anti_link', 'anti_tagall', 'anti_virtex', 'filter'].includes(event.pluginName) && !isOwner && !m.fromMe) continue
+            if (!['anti_link', 'anti_tagall', 'anti_virtex', 'filter'].includes(name) && users && (users.banned || new Date - users.banTemp < env.timeout)) continue
+            if (!['anti_link', 'anti_tagall', 'anti_virtex', 'filter'].includes(name) && groupSet && groupSet.mute) continue
+            if (!m.isGroup && !['menfess_ev', 'chatbot', 'auto_download'].includes(name) && chats && !isPrem && !users.banned && new Date() * 1 - chats.lastchat < env.timeout) continue
+            if (!m.isGroup && setting.groupmode && !['system_ev', 'menfess_ev', 'chatbot', 'auto_download'].includes(name) && !isPrem) return client.sendMessageModify(m.chat, `⚠️ Bot sedang dalam mode khusus group, kalo mau pake join group dulu https://chat.whatsapp.com/EG0AFDSWMgMCxGZ2EU3SjA\n atau tanya owner dengan cara ketik *${prefixes[0]}owner*`, m, {
+               largeThumb: true,
+               thumbnail: await Func.fetchBuffer('https://telegra.ph/file/0b32e0a0bb3b81fef9838.jpg'),
+               url: setting.link
+            }).then(() => chats.lastchat = new Date() * 1)
             if (event.cache && event.location) {
                let file = require.resolve(event.location)
                Func.reload(file)
             }
-            if (!m.isGroup && global.blocks.some(no => m.sender.startsWith(no))) return client.updateBlockStatus(m.sender, 'block')
-            if (m.isGroup && !['exec'].includes(name) && groupSet.mute) continue
-            if (setting.pluginDisable.includes(name)) continue
-            if (!m.isGroup && chats && !isPrem && !users.banned && new Date() * 1 - chats.lastchat < global.timer) continue
-            if (!m.isGroup && chats && !isPrem && !users.banned && !['chatAI'].includes(name) && setting.groupmode) return client.sendMessageModify(m.chat, `🚩 *maaf kak bot sedang dalam mode khusus group, jadi kalo mau make sekarang, join dulu ke group ya*\n\nlinknya: https://chat.whatsapp.com/JzVjZdvnBVw1Eby1q2jjTj`, m, {
-               largeThumb: true,
-               thumbnail: await Func.fetchBuffer('https://telegra.ph/file/2709298672a9c2d5556f6.jpg'),
-               url: setting.link
-            }).then(() => chats.lastchat = new Date() * 1)
-            if (setting.self && !['chatAI', 'exec'].includes(name) && !isOwner && !m.fromMe) continue
-            if (!m.isGroup && ['chatAI'].includes(name) && body && Func.socmed(body)) continue
-            if (!['exec', 'restrict'].includes(name) && users && users.banned) continue
-            if (!['anti_link', 'anti_tagall', 'anti_virtex', 'filter', 'exec'].includes(name) && users && (users.banned || new Date - users.banTemp < global.timer)) continue
-            if (!['anti_link', 'anti_tagall', 'anti_virtex', 'filter', 'exec'].includes(name) && groupSet && groupSet.mute) continue
             if (event.error) continue
             if (event.owner && !isOwner) continue
-            if (event.moderator && !isMod) continue
             if (event.group && !m.isGroup) continue
-            if (event.limit && users.limit < 1) continue
+            if (event.limit && !event.game && users.limit < 1 && body && Func.generateLink(body) && Func.generateLink(body).some(v => Func.socmed(v))) return client.reply(m.chat, `⚠️ Kamu Mencapai Limit ,Akan Reset Pukul 00.00\n\nLebih Banyak Limit?,Beralih Ke Premium.`, m).then(() => {
+               users.premium = false
+               users.expired = 0
+            })
             if (event.botAdmin && !isBotAdmin) continue
             if (event.admin && !isAdmin) continue
             if (event.private && m.isGroup) continue
-            if (event.download && (!setting.autodownload || (body && global.evaluate_chars.some(v => body.startsWith(v))))) continue
+            if (event.download && users && !users.verified && body && Func.socmed(body) && setting.verify) return client.reply(m.chat, `🚩 Nomormu Belum Di Verifikasi, Verifikasi Dengan Perintah *reg <email>* Di Chat Pribadi.`, m)
+            if (event.download && (!setting.autodownload || (body && env.evaluate_chars.some(v => body.startsWith(v))))) continue
             if (event.premium && !isPrem && body && Func.socmed(body)) return client.reply(m.chat, global.status.premium, m)
-            event.async(m, {
-               client,
-               body,
-               participants,
-               prefixes,
-               isOwner,
-               isAdmin,
-               isBotAdmin,
-               users,
-               chats,
-               groupSet,
-               groupMetadata,
-               setting,
-               plugins,
-               store
-            })
+            if (event.game && !setting.games) continue
+            if (event.game && Func.level(users.point)[0] >= 50) continue
+            if (event.game && m.isGroup && !groupSet.game) continue
+
+            event.async(m, { client, body, prefixes, groupMetadata, participants, users, chats, groupSet, setting, isOwner, isAdmin, isBotAdmin, plugins, blockList, env, ctx, store, Func, Scraper })
          }
       }
    } catch (e) {
+      if (/(undefined|overlimit|timed|timeout|users|item|time)/ig.test(e.message)) return
       console.log(e)
-      // if (!m.fromMe) m.reply(Func.jsonFormat(e))
+      if (!m.fromMe) return m.reply(Func.jsonFormat(new Error('Alesya encountered an error :' + e)))
    }
+   Func.reload(require.resolve(__filename))
 }
-
-Func.reload(require.resolve(__filename))

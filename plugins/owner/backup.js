@@ -4,13 +4,13 @@ exports.run = {
    category: 'owner',
    async: async (m, {
       client,
-      command
+      command,
+      env,
+      Func
    }) => {
       try {
-         await props.save()
-         create('./database.json', JSON.stringify(global.db, null, 3), 'utf-8')
-         client.reply(m.chat, global.status.wait, m)
-         await client.sendFile(m.chat, read('./database.json'), 'database.json', '', m)
+         create(env.database + '.json', JSON.stringify(global.db, null, 3), 'utf-8')
+         await client.sendFile(m.chat, read('./' + env.database + '.json'), env.database + '.json', '', m)
       } catch (e) {
          return client.reply(m.chat, Func.jsonFormat(e), m)
       }

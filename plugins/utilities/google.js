@@ -6,13 +6,16 @@ exports.run = {
       client,
       text,
       isPrefix,
-      command
+      command,
+      Func
    }) => {
       try {
          if (!text) return client.reply(m.chat, Func.example(isPrefix, command, 'cat'), m)
          client.sendReact(m.chat, '🕒', m.key)
          if (command == 'google') {
-            let json = await Api.google(text)
+            const json = await Api.neoxr('/google', {
+               q: text
+            })
             if (!json.status) return client.reply(m.chat, global.status.fail, m)
             let teks = `乂  *G O O G L E - S E A R C H*\n\n`
             json.data.map((v, i) => {
@@ -26,7 +29,9 @@ exports.run = {
                thumbnail: await Func.fetchBuffer('https://telegra.ph/file/d7b761ea856b5ba7b0713.jpg')
             })
          } else if (command == 'goimg') {
-            let json = await Api.google(text, true)
+            const json = await Api.neoxr('/goimg', {
+               q: text
+            })
             if (!json.status) return client.reply(m.chat, global.status.fail, m)
             for (let i = 0; i < 5; i++) {
                var rand = Math.floor(json.data.length * Math.random())
@@ -43,5 +48,8 @@ exports.run = {
       }
    },
    error: false,
-   restrict: true
+   restrict: true,
+   limit: true,
+   cache: true,
+   location: __filename
 }

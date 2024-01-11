@@ -6,43 +6,19 @@ exports.run = {
       client,
       args,
       isPrefix,
-      command
+      command,
+      setting,
+      Func
    }) => {
       try {
-         let setting = global.db.setting
-         if (!args || !args[0]) {
-            let rows = [{
-               title: `STYLE 1`,
-               rowId: `${isPrefix + command} 1`,
-               description: ''
-            }, {
-               title: `STYLE 2`,
-               rowId: `${isPrefix + command} 2`,
-               description: ''
-            }, {
-               title: `STYLE 3`,
-               rowId: `${isPrefix + command} 3`,
-               description: ''
-            }, {
-               title: `STYLE 4`,
-               rowId: `${isPrefix + command} 4`,
-               description: ''
-            }, {
-               title: `STYLE 5`,
-               rowId: `${isPrefix + command} 5`,
-               description: ''
-            }]
-            client.sendList(m.chat, '', `Choose menu style. 🍟`, '', 'Tap!', [{
-               rows
-            }], m)
-         } else {
-            client.reply(m.chat, `🚩 Bot menu successfully set using style *${args[0]}*.`, m).then(() => setting.menuStyle = parseInt(args[0]))
-         }
+         if (!args || !args[0]) return m.reply(Func.example(isPrefix, command, '2'))
+         if (!['1', '2', '3','4'].includes(args[0])) return client.reply(m.chat, Func.texted('bold', `🚩 Style not available.`), m)
+         client.reply(m.chat, `🚩 Bot menu successfully set using style *${args[0]}*.`, m).then(() => setting.style = parseInt(args[0]))
       } catch (e) {
-         console.log(e)
-         return client.reply(m.chat, global.status.error, m)
+         client.reply(m.chat, Func.jsonFormat(e), m)
       }
    },
-   error: false,
-   owner: true
+   owner: true,
+   cache: true,
+   location: __filename
 }

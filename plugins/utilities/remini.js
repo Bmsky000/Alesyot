@@ -4,9 +4,10 @@ exports.run = {
    category: 'utilities',
    async: async (m, {
       client,
-      text,
       isPrefix,
-      command
+      command,
+      Func,
+      Scraper
    }) => {
       try {
          if (m.quoted ? m.quoted.message : m.msg.viewOnce) {
@@ -15,8 +16,10 @@ exports.run = {
             if (/image/.test(type)) {
            	client.sendReact(m.chat, '🕒', m.key)
                let img = await client.downloadMediaMessage(q)
-               let image = await scrap.uploadImageV2(img)
-               let json = await Api.remini(image.data.url)
+               let image = await Scraper.uploadImageV2(img)
+               const json = await Api.neoxr('/remini2', {
+                  image: image.data.url
+               })
                if (!json.status) return m.reply(Func.jsonFormat(json))
                client.sendFile(m.chat, json.data.url, 'image.jpg', '', m)
             } else client.reply(m.chat, Func.texted('bold', `🚩 Only for photo.`), m)
@@ -27,8 +30,10 @@ exports.run = {
             if (!/image\/(jpe?g|png)/.test(mime)) return client.reply(m.chat, Func.texted('bold', `🚩 Only for photo.`), m)
             client.sendReact(m.chat, '🕒', m.key)
             let img = await q.download()
-            let image = await scrap.uploadImageV2(img)
-            let json = await Api.remini(image.data.url)
+            let image = await Scraper.uploadImageV2(img)
+            const json = await Api.neoxr('/remini2', {
+               image: image.data.url
+            })
             if (!json.status) return m.reply(Func.jsonFormat(json))
             client.sendFile(m.chat, json.data.url, 'image.jpg', '', m)
          }
@@ -38,5 +43,7 @@ exports.run = {
    },
    error: false,
    limit: true,
-   premium: true
+   premium: true,
+   cache: true,
+   location: __filename
 }
